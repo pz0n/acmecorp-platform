@@ -1,14 +1,15 @@
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Response, status
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .database import Base, engine, get_db
 from .models import Order
 from .schemas import OrderCreate, OrderResponse
 
-
 app = FastAPI(
     title="AcmeCorp Orders API",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 
@@ -23,11 +24,33 @@ def root():
     }
 
 
-@app.get("/health")
-def health():
+@app.get("/health/live")
+def liveness():
     return {
-        "status": "healthy",
+        "status": "alive",
     }
+
+
+@app.get("/health/ready")
+def readiness(
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    try:
+        db.execute(text("SELECT 1"))
+
+        return {
+            "status": "ready",
+            "database": "reachable",
+        }
+
+    except SQLAlchemyError:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+
+        return {
+            "status": "not_ready",
+            "database": "unreachable",
+        }
 
 
 @app.post(
