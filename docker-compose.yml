@@ -6,6 +6,8 @@ services:
     container_name: acmecorp-orders-api
     ports:
       - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://acme:acme@postgres:5432/acmecorp
     depends_on:
       postgres:
         condition: service_healthy
