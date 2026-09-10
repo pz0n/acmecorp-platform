@@ -39,26 +39,45 @@ async def request_logging_middleware(
 
     start_time = time.perf_counter()
 
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
 
-    duration_ms = (
-        time.perf_counter() - start_time
-    ) * 1000
+        duration_ms = (
+            time.perf_counter() - start_time
+        ) * 1000
 
-    response.headers["X-Request-ID"] = request_id
+        response.headers["X-Request-ID"] = request_id
 
-    logger.info(
-        "HTTP request completed",
-        extra={
-            "request_id": request_id,
-            "method": request.method,
-            "path": request.url.path,
-            "status_code": response.status_code,
-            "duration_ms": round(duration_ms, 2),
-        },
-    )
+        logger.info(
+            "HTTP request completed",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": response.status_code,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
 
-    return response
+        return response
+    
+    except Exception:
+        duration_ms = (
+            time.perf_counter() - start_time
+        ) * 1000
+        
+        logger.exception(
+            "Unhandled exception during HTTP request",
+            extra={
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.url.path,
+                "status_code": 500,
+                "duration_ms": round(duration_ms, 2),
+            },
+        )
+
+        raise
 
 
 @app.get("/")
@@ -137,3 +156,8 @@ def get_order(
         )
 
     return order
+
+
+@app.get("/debug/error")
+def debug_error():
+    raise RuntimeError("Simulated application failure")

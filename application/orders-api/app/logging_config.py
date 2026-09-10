@@ -27,6 +27,11 @@ class JsonFormatter(logging.Formatter):
             if value is not None:
                 log_record[field] = value
 
+        if record.exc_info:
+            log_record["exception"] = self.formatException(
+                record.exc_info
+            )
+            
         return json.dumps(log_record)
 
 
