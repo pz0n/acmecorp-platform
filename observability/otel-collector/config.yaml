@@ -11,8 +11,8 @@ processors:
 
 exporters:
   debug:
-    verbosity: basic
-
+    verbosity: basic 
+    
   otlp/jaeger:
     endpoint: jaeger:4317
     tls:
@@ -30,3 +30,11 @@ service:
       exporters:
         - debug
         - otlp/jaeger
+
+    metrics:
+      receivers:
+        - otlp
+      processors:
+        - batch
+      exporters:
+        - debug

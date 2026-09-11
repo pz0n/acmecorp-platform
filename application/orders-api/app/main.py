@@ -9,8 +9,12 @@ from sqlalchemy.orm import Session
 
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+from opentelemetry import metrics
 
-from .telemetry import configure_tracing
+from .telemetry import (
+    configure_tracing,
+    configure_metrics,
+)
 
 from .database import Base, engine, get_db
 from .models import Order
@@ -20,10 +24,23 @@ from .logging_config import configure_logging
 
 configure_logging()
 configure_tracing()
+configure_metrics()
 
 logger = logging.getLogger("acmecorp")
 
+meter = metrics.get_meter("orders-api")
 
+request_counter = meter.create_counter(
+    name="acmecorp.http.requests",
+    description="Total number of HTTP requests",
+    unit="1",
+)
+
+request_duration = meter.create_histogram(
+    name="acmecorp.http.request.duration",
+    description="HTTP request duration",
+    unit="ms",
+)
 
 app = FastAPI(
     title="AcmeCorp Orders API",
@@ -61,6 +78,29 @@ async def request_logging_middleware(
 
         response.headers["X-Request-ID"] = request_id
 
+        route = request.scope.get("route")
+        route_path = getattr(
+            route,
+            "path",
+            request.url.path,
+        )
+
+        attributes = {
+            "http.request.method": request.method,
+            "http.route": route_path,
+            "http.response.status_code": response.status_code,
+        }
+
+        request_counter.add(
+            1,
+            attributes=attributes,
+        )
+
+        request_duration.record(
+            duration_ms,
+            attributes=attributes,
+        )
+
         logger.info(
             "HTTP request completed",
             extra={
@@ -73,12 +113,35 @@ async def request_logging_middleware(
         )
 
         return response
-    
+
     except Exception:
         duration_ms = (
             time.perf_counter() - start_time
         ) * 1000
-        
+
+        route = request.scope.get("route")
+        route_path = getattr(
+            route,
+            "path",
+            request.url.path,
+        )
+
+        attributes = {
+            "http.request.method": request.method,
+            "http.route": route_path,
+            "http.response.status_code": 500,
+        }
+
+        request_counter.add(
+            1,
+            attributes=attributes,
+        )
+
+        request_duration.record(
+            duration_ms,
+            attributes=attributes,
+        )
+
         logger.exception(
             "Unhandled exception during HTTP request",
             extra={
