@@ -3,15 +3,23 @@ services:
   orders-api:
     build:
       context: ./application/orders-api
+
     container_name: acmecorp-orders-api
+
     ports:
       - "8000:8000"
+
     environment:
       DATABASE_URL: postgresql+psycopg://acme:acme@postgres:5432/acmecorp
+      OTEL_SERVICE_NAME: orders-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+
     depends_on:
       postgres:
         condition: service_healthy
-
+      otel-collector:
+        condition: service_started
+        
   postgres:
     image: postgres:16
     container_name: acmecorp-postgres
@@ -28,6 +36,27 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+  
+  otel-collector:
+    image: otel/opentelemetry-collector:0.160.0
+    container_name: acmecorp-otel-collector
+    command:
+      - "--config=/etc/otelcol/config.yaml"
+    volumes:
+      - ./observability/otel-collector/config.yaml:/etc/otelcol/config.yaml
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - jaeger
+
+  jaeger:
+    image: jaegertracing/jaeger:latest
+    container_name: acmecorp-jaeger
+    ports:
+      - "16686:16686"
 
 volumes:
   postgres_data:
+
+

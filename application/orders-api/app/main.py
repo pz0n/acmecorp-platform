@@ -7,6 +7,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+from .telemetry import configure_tracing
+
 from .database import Base, engine, get_db
 from .models import Order
 from .schemas import OrderCreate, OrderResponse
@@ -14,8 +19,10 @@ from .logging_config import configure_logging
 
 
 configure_logging()
+configure_tracing()
 
 logger = logging.getLogger("acmecorp")
+
 
 
 app = FastAPI(
@@ -26,6 +33,12 @@ app = FastAPI(
 
 Base.metadata.create_all(bind=engine)
 
+
+FastAPIInstrumentor.instrument_app(app)
+
+SQLAlchemyInstrumentor().instrument(
+    engine=engine,
+)
 
 @app.middleware("http")
 async def request_logging_middleware(

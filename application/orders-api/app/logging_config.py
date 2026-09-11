@@ -2,7 +2,7 @@ import json
 import logging
 import sys
 from datetime import datetime, timezone
-
+from opentelemetry import trace
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
@@ -12,6 +12,20 @@ class JsonFormatter(logging.Formatter):
             "service": "orders-api",
             "message": record.getMessage(),
         }
+
+        span = trace.get_current_span()
+        span_context = span.get_span_context()
+
+        if span_context.is_valid:
+            log_record["trace_id"] = format(
+                span_context.trace_id,
+                "032x",
+            )
+            log_record["span_id"] = format(
+                span_context.span_id,
+                "016x",
+            )
+
 
         extra_fields = (
             "request_id",
