@@ -14,13 +14,29 @@ services:
       OTEL_SERVICE_NAME: orders-api
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       INVENTORY_DELAY_SECONDS: "1.5"
+      PAYMENTS_API_URL: http://payments-api:8001
 
     depends_on:
       postgres:
         condition: service_healthy
       otel-collector:
         condition: service_started
-        
+      payments-api:
+        condition: service_started
+
+  payments-api:
+    build:
+      context: ./application/payments-api
+    container_name: acmecorp-payments-api
+    ports:
+      - "8001:8001"
+    environment:
+      OTEL_SERVICE_NAME: payments-api
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      otel-collector:
+        condition: service_started
+          
   postgres:
     image: postgres:16
     container_name: acmecorp-postgres
@@ -71,7 +87,7 @@ services:
       - otel-collector
 
   grafana:
-    image: grafana/grafana:v13.2.1
+    image: grafana/grafana:latest
     container_name: acmecorp-grafana
     ports:
       - "3000:3000"

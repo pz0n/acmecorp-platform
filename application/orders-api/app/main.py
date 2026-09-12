@@ -1,7 +1,9 @@
 import logging
 import time
+from urllib import request
 import uuid
 import os
+import httpx    
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from sqlalchemy import text
@@ -13,6 +15,9 @@ from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 from opentelemetry import (
     metrics,
     trace,
+)
+from opentelemetry.instrumentation.httpx import (
+    HTTPXClientInstrumentor,
 )
 
 from .telemetry import (
@@ -26,10 +31,14 @@ from .schemas import OrderCreate, OrderResponse
 from .logging_config import configure_logging
 
 
+PAYMENTS_API_URL = os.getenv(
+    "PAYMENTS_API_URL",
+    "http://payments-api:8001",
+)
+
 configure_logging()
 configure_tracing()
 configure_metrics()
-
 
 
 logger = logging.getLogger("acmecorp")
@@ -64,6 +73,8 @@ SQLAlchemyInstrumentor().instrument(
     engine=engine,
 )
 
+HTTPXClientInstrumentor().instrument()
+
 @app.middleware("http")
 async def request_logging_middleware(
     request: Request,
@@ -73,6 +84,8 @@ async def request_logging_middleware(
         "X-Request-ID",
         str(uuid.uuid4()),
     )
+
+    request.state.request_id = request_id
 
     start_time = time.perf_counter()
 
@@ -266,6 +279,98 @@ def get_order(
 
     return order
 
+@app.post("/orders/{order_id}/checkout")
+def checkout_order(
+    order_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    order = db.get(
+        Order,
+        order_id,
+    )
+
+    if order is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Order not found",
+        )
+
+    payment_request = {
+        "order_id": order.id,
+        "customer_id": order.customer_id,
+        "amount_cents": order.quantity * 1000,
+    }
+
+    try:
+        with httpx.Client(
+            timeout=3.0,
+        ) as client:
+            payment_response = client.post(
+                (
+                    f"{PAYMENTS_API_URL}"
+                    "/payments/authorize"
+                ),
+                json=payment_request,
+                headers={
+                    "X-Request-ID":
+                        request.state.request_id,
+                },
+            )
+
+            payment_response.raise_for_status()
+
+    # we use 504 when the Orders successfully sent the request to the Payments API, but the Payments API did not respond in time
+    except httpx.TimeoutException:
+        logger.error(
+            "Payments API request timed out",
+            extra={
+                "request_id":
+                    request.state.request_id,
+            },
+        )
+
+        raise HTTPException(
+            status_code=504,
+            detail="Payments service timed out",
+        )
+
+    # we use 502 when the downstream dependecy (Payments API) returned an error, or when the Payments API is unavailable
+    except httpx.HTTPStatusError as exc:
+        logger.error(
+            "Payments API returned an error",
+            extra={
+                "request_id":
+                    request.state.request_id,
+                "status_code":
+                    exc.response.status_code,
+            },
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail="Payments service returned an error",
+        )
+
+    except httpx.RequestError:
+        logger.exception(
+            "Payments API unavailable",
+            extra={
+                "request_id":
+                    request.state.request_id,
+            },
+        )
+
+        raise HTTPException(
+            status_code=502,
+            detail="Payments service unavailable",
+        )
+
+    return {
+        "order_id": order.id,
+        "order_status": order.status,
+        "payment": payment_response.json(),
+    }
 
 @app.get("/debug/error")
 def debug_error():
@@ -288,3 +393,4 @@ def slow_order(
         )
 
     return order
+
