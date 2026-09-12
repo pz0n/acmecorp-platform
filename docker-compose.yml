@@ -13,6 +13,7 @@ services:
       DATABASE_URL: postgresql+psycopg://acme:acme@postgres:5432/acmecorp
       OTEL_SERVICE_NAME: orders-api
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      INVENTORY_DELAY_SECONDS: "1.5"
 
     depends_on:
       postgres:
@@ -58,5 +59,3 @@ services:
 
 volumes:
   postgres_data:
-
-
