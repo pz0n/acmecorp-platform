@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s
+
+#  Docker's service networking lets Prometheus reach the OpenTelemetry Collector by its service name, 
+#  which is the same as the container name in docker-compose.yml.
+scrape_configs:
+  - job_name: otel-collector
+    static_configs:
+      - targets:
+          - otel-collector:8889

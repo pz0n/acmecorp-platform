@@ -637,8 +637,8 @@ This structure allows the project to evolve into a broader Solutions Engineering
 - [x] Metric cardinality controls
 - [x] OpenTelemetry Collector
 - [x] Jaeger
-- [ ] Prometheus
-- [ ] Grafana dashboards
+- [x] Prometheus
+- [x] Grafana dashboards
 - [ ] Operational alerting
 - [ ] Service-level indicators
 
