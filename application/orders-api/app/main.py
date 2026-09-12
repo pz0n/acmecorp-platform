@@ -1,6 +1,7 @@
 import logging
 import time
 import uuid
+import os
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response, status
 from sqlalchemy import text
@@ -9,7 +10,10 @@ from sqlalchemy.orm import Session
 
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
-from opentelemetry import metrics
+from opentelemetry import (
+    metrics,
+    trace,
+)
 
 from .telemetry import (
     configure_tracing,
@@ -26,9 +30,12 @@ configure_logging()
 configure_tracing()
 configure_metrics()
 
+
+
 logger = logging.getLogger("acmecorp")
 
 meter = metrics.get_meter("orders-api")
+tracer = trace.get_tracer("orders-api")
 
 request_counter = meter.create_counter(
     name="acmecorp.http.requests",
@@ -156,6 +163,32 @@ async def request_logging_middleware(
         raise
 
 
+def simulate_inventory_check() -> None:
+    delay_seconds = float(
+        os.getenv(
+            "INVENTORY_DELAY_SECONDS",
+            "0",
+        )
+    )
+
+    with tracer.start_as_current_span(
+        "inventory.check",
+    ) as span:
+        span.set_attribute(
+            "inventory.provider",
+            "legacy-inventory-system",
+        )
+        span.set_attribute(
+            "inventory.delay_seconds",
+            delay_seconds,
+        )
+        span.set_attribute(
+            "incident.simulated",
+            True,
+        )
+
+        time.sleep(delay_seconds)
+
 @app.get("/")
 def root():
     return {
@@ -237,3 +270,21 @@ def get_order(
 @app.get("/debug/error")
 def debug_error():
     raise RuntimeError("Simulated application failure")
+
+
+@app.get("/debug/slow-order/{order_id}")
+def slow_order(
+    order_id: int,
+    db: Session = Depends(get_db),
+):
+    simulate_inventory_check()
+
+    order = db.get(Order, order_id)
+
+    if order is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Order not found",
+        )
+
+    return order
