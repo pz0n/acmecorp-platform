@@ -18,6 +18,11 @@ exporters:
     tls:
       insecure: true
 
+  # Prometheus exporter configuration. 
+  # OpenTelemetry's current Docker docs also uses port 8889 for Prometheus, so we will use that here.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
 service:
   pipelines:
     traces:
@@ -38,3 +43,4 @@ service:
         - batch
       exporters:
         - debug
+        - prometheus
