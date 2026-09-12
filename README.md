@@ -1,41 +1,46 @@
 # AcmeCorp Platform
 
-A production-inspired e-commerce environment built to demonstrate **solution architecture, observability, troubleshooting, and technical problem-solving** in a realistic distributed application.
+A production-inspired distributed e-commerce environment built to demonstrate **solution architecture, observability, troubleshooting, distributed systems, and technical problem-solving**.
 
-The project is designed as a hands-on Solutions Engineering portfolio project. Rather than focusing only on application development, it demonstrates how a modern service can be deployed, observed, diagnosed, and explained from both an engineering and customer-facing perspective.
+The project is designed as a hands-on Solutions Engineering portfolio project. Rather than focusing only on application development, it demonstrates how modern services can be integrated, observed, diagnosed, and explained from both an engineering and customer-facing perspective.
 
-The environment currently uses **Python, FastAPI, PostgreSQL, Docker, OpenTelemetry, and Jaeger**, with additional infrastructure, observability, cloud, and security capabilities being added incrementally.
+The environment currently uses **Python, FastAPI, PostgreSQL, Docker, OpenTelemetry, Prometheus, Grafana, and Jaeger**, with cloud infrastructure, security capabilities, additional incidents, and customer-facing Solutions Engineering material being added incrementally.
 
 ---
 
 ## Why This Project Exists
 
-Modern Solutions Engineers need to understand more than a single product or programming language.
+I am building this project as part of my transition toward Solutions Engineering.
 
-They need to be able to:
+It provides an environment where I can learn, experiment with, and demonstrate technical skills involved in the role while building on my existing background in software development, data, APIs, databases, technical discovery, and solution design.
 
-- understand customer architectures
-- identify technical requirements
-- design integrations
-- work with APIs and infrastructure
-- troubleshoot production problems
-- understand application telemetry
-- communicate technical findings clearly
-- demonstrate solutions through proofs of concept
+The project focuses on capabilities such as:
 
-AcmeCorp Platform provides a realistic environment for practicing and demonstrating those skills.
+- understanding application and customer architectures
+- identifying technical requirements and dependencies
+- designing service integrations
+- working with APIs, databases, containers, and infrastructure
+- implementing observability
+- troubleshooting production-style problems
+- correlating logs, metrics, and distributed traces
+- explaining technical findings clearly
+- designing and demonstrating proofs of concept
 
-Instead of building isolated technology demos, the project uses one evolving fictional production environment where infrastructure, observability, security, and troubleshooting scenarios can be introduced over time.
+Rather than creating isolated technology demos, AcmeCorp Platform is one evolving fictional production environment.
+
+New services, integrations, infrastructure, observability capabilities, security controls, failure scenarios, and troubleshooting challenges are introduced incrementally.
+
+The goal is not simply to build a microservices application. The platform acts as a **Solutions Engineering playground** for understanding how systems fit together, diagnosing problems, designing solutions, and communicating the technical reasoning behind them.
 
 ---
 
-## Architecture
+## Current Architecture
 
-The current environment consists of a containerized Orders API backed by PostgreSQL and instrumented with OpenTelemetry.
+The current platform consists of an Orders API backed by PostgreSQL and a downstream Payments API.
+
+Both application services are instrumented with OpenTelemetry.
 
 ```text
-                         AcmeCorp Platform
-
                               Client
                                 │
                                 │ HTTP
@@ -45,93 +50,145 @@ The current environment consists of a containerized Orders API backed by Postgre
                          │   FastAPI   │
                          └──────┬──────┘
                                 │
-                  ┌─────────────┴─────────────┐
-                  │                           │
-                  │ SQL                       │ OTLP
-                  ▼                           ▼
-           ┌────────────┐              ┌───────────────┐
-           │ PostgreSQL │              │ OpenTelemetry │
-           │            │              │   Collector   │
-           └────────────┘              └───────┬───────┘
-                                              │
-                                              │ Traces
-                                              ▼
-                                       ┌─────────────┐
-                                       │   Jaeger    │
-                                       │             │
-                                       └─────────────┘
+                    ┌───────────┴───────────┐
+                    │                       │
+                    │ SQL                   │ HTTP
+                    ▼                       ▼
+             ┌────────────┐          ┌──────────────┐
+             │ PostgreSQL │          │ Payments API │
+             └────────────┘          │   FastAPI    │
+                                     └──────────────┘
+                    │                       │
+                    │                       │
+                    └───────────┬───────────┘
+                                │
+                                │ OTLP
+                                ▼
+                      ┌────────────────────┐
+                      │   OpenTelemetry    │
+                      │     Collector      │
+                      └─────────┬──────────┘
+                                │
+                     ┌──────────┴──────────┐
+                     │                     │
+                     ▼                     ▼
+              ┌────────────┐        ┌────────────┐
+              │   Jaeger   │        │ Prometheus │
+              │   Traces   │        │  Metrics   │
+              └────────────┘        └──────┬─────┘
+                                           │
+                                           ▼
+                                    ┌────────────┐
+                                    │  Grafana   │
+                                    │ Dashboards │
+                                    └────────────┘
 ```
 
-The OpenTelemetry Collector acts as the telemetry routing layer between the application and observability backends.
+The OpenTelemetry Collector acts as a telemetry routing layer between the applications and observability backends.
 
-This keeps application instrumentation vendor-neutral and allows additional platforms to be introduced without redesigning the application.
+This keeps application instrumentation vendor-neutral and provides a central place from which telemetry can be routed to different platforms.
 
 ---
 
-## Current Capabilities
+## Current Services
 
-### Application
+The complete environment runs using Docker Compose.
 
-The platform currently includes a FastAPI-based Orders API with:
+Current services are:
 
-- order creation
-- order retrieval
+```text
+orders-api
+payments-api
+postgres
+otel-collector
+jaeger
+prometheus
+grafana
+```
+
+The application layer currently contains two independently containerized FastAPI services.
+
+### Orders API
+
+Responsible for:
+
+- creating orders
+- retrieving orders
 - PostgreSQL persistence
-- SQLAlchemy ORM
-- API validation
-- HTTP error handling
+- initiating checkout
+- communicating with the Payments API
+- handling downstream payment failures
+
+Example endpoints:
+
+```text
+POST /orders
+GET  /orders/{order_id}
+POST /orders/{order_id}/checkout
+```
+
+### Payments API
+
+Represents a downstream payment authorization service.
 
 Example endpoint:
 
 ```text
-GET /orders/{order_id}
+POST /payments/authorize
 ```
 
----
-
-### Containerization
-
-The environment runs locally using Docker Compose.
-
-Current services include:
+A checkout therefore creates a real service-to-service request:
 
 ```text
-orders-api
-postgres
-otel-collector
-jaeger
+Client
+   │
+   ▼
+Orders API
+   │
+   │ HTTP
+   ▼
+Payments API
 ```
 
-This provides a reproducible environment where application and infrastructure behavior can be tested consistently.
+This provides the foundation for distributed tracing and future downstream dependency incidents.
 
 ---
 
-### Health Monitoring
+## Health Monitoring
 
-The Orders API exposes separate liveness and readiness endpoints.
+Services expose separate liveness and readiness endpoints.
+
+Orders:
 
 ```text
 GET /health/live
 GET /health/ready
 ```
 
-The liveness endpoint answers:
+Payments:
 
-> Is the application process running?
+```text
+GET /health/live
+GET /health/ready
+```
 
-The readiness endpoint answers:
+Liveness answers:
 
-> Is the application capable of serving traffic?
+> Is the service process alive?
 
-Readiness includes a PostgreSQL dependency check using a lightweight database query.
+Readiness answers:
 
-This models the health-check patterns commonly used by container orchestrators and load balancers.
+> Is the service capable of accepting traffic?
+
+The Orders readiness check includes a PostgreSQL dependency check.
+
+This models health-check patterns commonly used by container orchestrators and load balancers.
 
 ---
 
-## Observability
+# Observability
 
-The application implements the three primary observability signals:
+The platform implements the three primary observability signals:
 
 ```text
 Logs     → What happened?
@@ -141,11 +198,11 @@ Metrics  → How is the system behaving?
 Traces   → Where did the request spend its time?
 ```
 
-Together these signals provide different perspectives on application behavior and can be correlated during troubleshooting.
+These signals provide different levels of information and can be combined during an investigation.
 
 ---
 
-### Structured Logging
+## Structured Logging
 
 Application requests are logged as structured JSON rather than unstructured text.
 
@@ -167,105 +224,169 @@ Example:
 }
 ```
 
-Structured logging makes application events easier to search, aggregate, and ingest into observability or SIEM platforms.
+Structured logging makes application events easier to search, aggregate, correlate, and eventually ingest into observability or SIEM platforms.
 
 ---
 
-### Request Correlation
+## Cross-Service Request Correlation
 
-Each HTTP request receives a unique request ID.
+Each incoming request receives a request ID.
 
-Clients can also provide their own ID through:
+Clients can also provide one through:
 
 ```text
 X-Request-ID
 ```
 
-The request ID is included in:
+During checkout, Orders propagates this request ID to Payments:
 
-- application logs
-- HTTP response headers
-- error events
+```text
+Client
+   │
+   │ X-Request-ID
+   ▼
+Orders API
+   │
+   │ X-Request-ID
+   ▼
+Payments API
+```
 
-This makes it possible to follow an individual request during troubleshooting.
+The same identifier can therefore appear in structured logs from both services.
+
+This provides application-level correlation across the distributed transaction.
 
 ---
 
-### Trace and Log Correlation
+## Distributed Tracing
 
-Structured logs also include OpenTelemetry:
+Both Orders and Payments are instrumented using OpenTelemetry.
+
+Instrumentation currently includes:
+
+- FastAPI server requests
+- HTTPX outgoing HTTP requests
+- SQLAlchemy database operations
+- manually instrumented business operations
+
+Telemetry is exported using OTLP over gRPC.
+
+```text
+Orders API ──────┐
+                 │
+Payments API ────┼── OTLP ──► OpenTelemetry Collector ──► Jaeger
+                 │
+                 │
+PostgreSQL spans ┘
+```
+
+Jaeger provides visualization of complete request execution paths.
+
+---
+
+## Distributed Context Propagation
+
+A checkout request creates a distributed trace spanning multiple services.
+
+Conceptually:
+
+```text
+POST /orders/{order_id}/checkout
+│
+├── PostgreSQL SELECT
+│
+└── HTTP POST → Payments API
+      │
+      └── POST /payments/authorize
+            │
+            └── payment.authorize
+```
+
+OpenTelemetry propagates trace context across the HTTP boundary between Orders and Payments.
+
+As a result, spans generated by both services share the same trace ID.
+
+This allows an individual customer request to be followed across service boundaries.
+
+---
+
+## Trace and Log Correlation
+
+Structured application logs include:
 
 ```text
 trace_id
 span_id
+request_id
 ```
 
-This allows an engineer to move from a specific application log directly to the corresponding distributed trace.
-
-A typical investigation can therefore follow:
+This provides two complementary correlation mechanisms.
 
 ```text
-Error log
+request_id
     │
-    ▼
+    └── application-level request correlation
+
 trace_id
     │
-    ▼
-Distributed trace
-    │
-    ▼
-Slow or failing operation
+    └── distributed telemetry correlation
 ```
 
----
-
-### Distributed Tracing
-
-The Orders API is instrumented using OpenTelemetry.
-
-Instrumentation currently covers:
-
-- FastAPI HTTP requests
-- SQLAlchemy database operations
-- manually instrumented application operations
-
-Telemetry is exported using OTLP over gRPC:
+A troubleshooting workflow can therefore move from:
 
 ```text
-Orders API
-     │
-     │ OTLP :4317
-     ▼
-OpenTelemetry Collector
-     │
-     ▼
+Grafana
+   │
+   │ detect abnormal behavior
+   ▼
+Structured logs
+   │
+   │ identify affected request
+   ▼
+trace_id
+   │
+   ▼
 Jaeger
+   │
+   │ inspect distributed execution
+   ▼
+Slow or failing dependency
 ```
-
-Jaeger provides trace visualization and allows individual request execution paths to be inspected.
 
 ---
 
-### Application Metrics
+## Application Metrics
 
-The Orders API records application-level OpenTelemetry metrics including:
+The Orders API records OpenTelemetry application metrics including:
 
 ```text
 acmecorp.http.requests
 acmecorp.http.request.duration
 ```
 
-The request counter measures HTTP request volume.
+These are exported through:
 
-The request duration histogram records latency distributions and will later support operational measurements such as:
+```text
+Orders API
+    │
+    │ OTLP
+    ▼
+OpenTelemetry Collector
+    │
+    │ Prometheus exposition
+    ▼
+Prometheus
+    │
+    │ PromQL
+    ▼
+Grafana
+```
 
-- request rate
-- error rate
-- p50 latency
-- p95 latency
-- p99 latency
+The request counter measures HTTP traffic.
 
-Metric attributes include information such as:
+The request-duration histogram allows latency distributions and percentiles to be analyzed.
+
+Metric attributes include:
 
 ```text
 http.request.method
@@ -275,11 +396,11 @@ http.response.status_code
 
 ---
 
-### Metric Cardinality
+## Metric Cardinality
 
-HTTP metrics use normalized route templates rather than individual request paths.
+HTTP metrics use normalized route templates rather than individual resource paths.
 
-For example, requests to:
+For example:
 
 ```text
 /orders/1
@@ -287,25 +408,72 @@ For example, requests to:
 /orders/999
 ```
 
-are represented as:
+are represented in metrics as:
 
 ```text
 /orders/{order_id}
 ```
 
-rather than creating separate metric dimensions for every order ID.
+instead of creating a separate metric dimension for every order ID.
 
-This prevents unbounded metric cardinality as the number of unique resources increases.
+This avoids unbounded metric cardinality as the number of resources increases.
 
-Exact paths remain available in structured logs where request-level detail is useful.
+Exact request paths remain available in structured logs where request-level detail is appropriate.
 
 ---
 
-## Incident Simulation
+# Prometheus and Grafana
+
+Prometheus stores the application's time-series metrics and provides PromQL for querying them.
+
+Grafana provides operational visualization on top of Prometheus.
+
+The current Orders API dashboard includes:
+
+```text
+Request Rate
+5xx Error Rate
+p95 Request Latency
+```
+
+These panels help answer different operational questions.
+
+```text
+Request Rate
+    → How much traffic is the service receiving?
+
+5xx Error Rate
+    → Are requests failing?
+
+p95 Request Latency
+    → Are users experiencing degraded performance?
+```
+
+The dashboard and Prometheus datasource are provisioned from files in the repository so the observability environment can be recreated automatically.
+
+---
+
+# Incident Simulation
 
 The platform contains intentionally introduced failure and degradation scenarios.
 
-The purpose is not simply to demonstrate that telemetry exists, but to use telemetry to investigate realistic production problems.
+The goal is not simply to demonstrate that telemetry exists.
+
+The goal is to use telemetry to answer questions such as:
+
+```text
+What is happening?
+
+Which requests are affected?
+
+Where is time being spent?
+
+Which dependency is responsible?
+
+Is the problem latency, availability, or errors?
+
+What evidence supports the root-cause hypothesis?
+```
 
 Incident scenarios are documented under:
 
@@ -319,19 +487,19 @@ Incident scenarios are documented under:
 
 The first incident simulates elevated latency caused by a legacy inventory dependency.
 
-The affected test endpoint is:
+Affected endpoint:
 
 ```text
 GET /debug/slow-order/{order_id}
 ```
 
-The simulated dependency creates an OpenTelemetry span:
+The dependency creates a custom OpenTelemetry span:
 
 ```text
 inventory.check
 ```
 
-and introduces configurable latency through:
+and introduces configurable latency using:
 
 ```text
 INVENTORY_DELAY_SECONDS
@@ -343,17 +511,17 @@ For example:
 INVENTORY_DELAY_SECONDS=1.5
 ```
 
-introduces approximately 1.5 seconds of downstream latency.
+adds approximately 1.5 seconds of downstream latency.
 
 ### Observed Symptom
 
-A normal request may complete in a few milliseconds:
+A normal request can complete in a few milliseconds:
 
 ```text
 GET /orders/1
 ```
 
-while the degraded endpoint takes approximately:
+while the degraded request takes approximately:
 
 ```text
 GET /debug/slow-order/1
@@ -363,11 +531,11 @@ GET /debug/slow-order/1
 
 ### Investigation
 
-Structured logs identify the affected requests and show elevated request duration.
+Grafana exposes elevated p95 request latency.
 
-Distributed tracing then reveals where that time was spent.
+Structured logs identify individual slow requests.
 
-Conceptually:
+Jaeger then reveals where the request spent its time:
 
 ```text
 GET /debug/slow-order/{order_id}       ~1500 ms
@@ -377,11 +545,11 @@ GET /debug/slow-order/{order_id}       ~1500 ms
 └── PostgreSQL query                      few ms
 ```
 
-The trace therefore isolates the inventory dependency as the primary latency contributor.
+The trace isolates the inventory dependency as the primary latency contributor.
 
 At the same time, SQLAlchemy tracing shows that PostgreSQL remains responsive.
 
-This allows the database to be eliminated as the likely root cause.
+The database can therefore be eliminated as the likely root cause.
 
 ### Troubleshooting Workflow
 
@@ -389,16 +557,19 @@ This allows the database to be eliminated as the likely root cause.
 Customer reports slow requests
             │
             ▼
-Inspect service health
+Grafana shows elevated latency
             │
             ▼
-Inspect latency / request telemetry
+Inspect structured logs
             │
             ▼
-Identify affected requests
+Identify affected request
             │
             ▼
-Use trace_id to inspect execution
+Use trace_id
+            │
+            ▼
+Inspect distributed trace
             │
             ▼
 Compare span durations
@@ -413,9 +584,7 @@ PostgreSQL eliminated as bottleneck
 Root cause isolated
 ```
 
-This demonstrates how logs, metrics, and traces provide complementary information during an investigation.
-
-The full incident analysis is available at:
+The full investigation is documented in:
 
 ```text
 incidents/001-slow-inventory-check.md
@@ -423,43 +592,68 @@ incidents/001-slow-inventory-check.md
 
 ---
 
-## Fault Injection
+# Downstream Failure Handling
+
+Orders acts as a consumer of the Payments service and handles downstream failures explicitly.
+
+Examples include:
+
+```text
+Payments unavailable
+    → 502 Bad Gateway
+
+Payments returns an error
+    → 502 Bad Gateway
+
+Payments timeout
+    → 504 Gateway Timeout
+```
+
+This allows the API to distinguish between internal application failures and problems originating from downstream dependencies.
+
+It also provides the foundation for future payment-service failure scenarios.
+
+---
+
+# Fault Injection
 
 Incident behavior is intentionally configurable.
 
-For example:
+For Incident 001:
 
 ```yaml
 INVENTORY_DELAY_SECONDS: "1.5"
 ```
 
-can be changed to:
+introduces latency.
+
+Changing it to:
 
 ```yaml
 INVENTORY_DELAY_SECONDS: "0"
 ```
 
-to return the simulated dependency to healthy behavior.
+restores normal behavior.
 
-This allows the same application and infrastructure to demonstrate both healthy and degraded conditions without modifying application logic.
+This allows healthy and degraded states to be compared while keeping the application architecture constant.
 
 Future scenarios will introduce additional failure modes such as:
 
 ```text
-latency
+downstream latency
 timeouts
 application errors
 database contention
 authentication failures
-dependency failures
+dependency outages
 security events
 ```
 
 ---
 
-## Running the Environment
+# Running the Environment
 
-### Requirements
+## Requirements
 
 You need:
 
@@ -467,49 +661,98 @@ You need:
 - Docker Compose
 - Git
 
-Clone the repository and start the environment:
+Clone the repository:
 
 ```bash
 git clone <repository-url>
 cd acmecorp-platform
+```
+
+Start the environment:
+
+```bash
 docker compose up --build
 ```
 
-Docker Compose starts the application and its supporting infrastructure.
+Docker Compose starts the application and observability stack.
 
 ---
 
-## Testing the API
+## Local Services
 
-Check application liveness:
+After startup:
+
+| Service | Address |
+|---|---|
+| Orders API | `http://localhost:8000` |
+| Orders Swagger UI | `http://localhost:8000/docs` |
+| Payments API | `http://localhost:8001` |
+| Payments Swagger UI | `http://localhost:8001/docs` |
+| Grafana | `http://localhost:3000` |
+| Prometheus | `http://localhost:9090` |
+| Jaeger | `http://localhost:16686` |
+
+The default Grafana credentials for the local lab are:
+
+```text
+username: admin
+password: admin
+```
+
+These credentials are intended only for the local development environment.
+
+---
+
+# Testing the Platform
+
+Check Orders:
 
 ```bash
 curl http://localhost:8000/health/live
-```
-
-Check readiness:
-
-```bash
 curl http://localhost:8000/health/ready
 ```
 
-Retrieve an order:
+Check Payments:
+
+```bash
+curl http://localhost:8001/health/live
+curl http://localhost:8001/health/ready
+```
+
+Create an order:
+
+```bash
+curl -X POST \
+  http://localhost:8000/orders \
+  -H "Content-Type: application/json" \
+  -d '{
+    "customer_id": 100,
+    "product": "Cloud Widget",
+    "quantity": 2
+  }'
+```
+
+Retrieve it:
 
 ```bash
 curl http://localhost:8000/orders/1
 ```
 
-The interactive FastAPI documentation is available at:
+Perform checkout:
 
-```text
-http://localhost:8000/docs
+```bash
+curl -X POST \
+  http://localhost:8000/orders/1/checkout \
+  -H "X-Request-ID: checkout-demo-001"
 ```
+
+The checkout request crosses the Orders and Payments service boundary and produces a distributed trace.
 
 ---
 
-## Viewing Distributed Traces
+# Viewing Distributed Traces
 
-Jaeger is exposed locally at:
+Open Jaeger:
 
 ```text
 http://localhost:16686
@@ -521,40 +764,85 @@ Select:
 orders-api
 ```
 
-as the service to inspect application traces.
-
-Generate a normal request:
+Perform a checkout:
 
 ```bash
-curl http://localhost:8000/orders/1
+curl -X POST \
+  http://localhost:8000/orders/1/checkout \
+  -H "X-Request-ID: checkout-demo-001"
 ```
 
-or generate the controlled latency incident:
+The resulting trace should include spans from both:
 
-```bash
-curl http://localhost:8000/debug/slow-order/1
+```text
+orders-api
+payments-api
 ```
 
-The resulting traces can then be compared in Jaeger.
+Conceptually:
+
+```text
+Orders checkout
+│
+├── PostgreSQL
+│
+└── Payments HTTP request
+      │
+      └── Payments authorization
+```
 
 ---
 
-## Repository Structure
+# Viewing Metrics
+
+Open Grafana:
+
+```text
+http://localhost:3000
+```
+
+The provisioned Orders API dashboard exposes:
+
+```text
+Request Rate
+5xx Error Rate
+p95 Request Latency
+```
+
+Prometheus is available at:
+
+```text
+http://localhost:9090
+```
+
+for direct PromQL exploration.
+
+---
+
+# Repository Structure
 
 ```text
 acmecorp-platform/
 │
 ├── application/
-│   └── orders-api/
+│   ├── orders-api/
+│   │   ├── app/
+│   │   │   ├── __init__.py
+│   │   │   ├── database.py
+│   │   │   ├── logging_config.py
+│   │   │   ├── main.py
+│   │   │   ├── models.py
+│   │   │   ├── schemas.py
+│   │   │   └── telemetry.py
+│   │   ├── Dockerfile
+│   │   └── requirements.txt
+│   │
+│   └── payments-api/
 │       ├── app/
 │       │   ├── __init__.py
-│       │   ├── database.py
 │       │   ├── logging_config.py
 │       │   ├── main.py
-│       │   ├── models.py
-│       │   ├── schemas.py
 │       │   └── telemetry.py
-│       │
 │       ├── Dockerfile
 │       └── requirements.txt
 │
@@ -564,8 +852,13 @@ acmecorp-platform/
 ├── infrastructure/
 │
 ├── observability/
-│   └── otel-collector/
-│       └── config.yaml
+│   ├── grafana/
+│   │   ├── dashboards/
+│   │   └── provisioning/
+│   ├── otel-collector/
+│   │   └── config.yaml
+│   └── prometheus/
+│       └── prometheus.yml
 │
 ├── security/
 │
@@ -580,57 +873,48 @@ acmecorp-platform/
 └── README.md
 ```
 
-The repository is intentionally organized beyond application source code.
-
-Separate areas exist for:
-
-```text
-architecture     → system design documentation
-infrastructure   → infrastructure-as-code and cloud resources
-observability    → telemetry and monitoring configuration
-security         → security controls and scenarios
-incidents        → troubleshooting exercises and root-cause analysis
-presales         → discovery, requirements, PoCs, and demo material
-```
-
-This structure allows the project to evolve into a broader Solutions Engineering environment rather than remaining only an application-development exercise.
-
 ---
 
-## Technology Stack
+# Technology Stack
 
 | Area | Technology |
 |---|---|
-| Application | Python |
-| API | FastAPI |
+| Language | Python |
+| APIs | FastAPI |
+| HTTP client | HTTPX |
 | Database | PostgreSQL |
 | ORM | SQLAlchemy |
 | Containers | Docker / Docker Compose |
 | Telemetry | OpenTelemetry |
-| Telemetry Protocol | OTLP / gRPC |
-| Distributed Tracing | Jaeger |
+| Telemetry transport | OTLP / gRPC |
+| Distributed tracing | Jaeger |
+| Metrics | OpenTelemetry Metrics / Prometheus |
+| Dashboards | Grafana |
 | Logging | Structured JSON |
-| Metrics | OpenTelemetry Metrics |
 
 ---
 
-## Roadmap
+# Roadmap
 
-### Application
+## Application
 
 - [x] Orders API
+- [x] Payments API
 - [x] PostgreSQL persistence
 - [x] API validation
-- [x] Error handling
 - [x] Health endpoints
+- [x] Service-to-service HTTP integration
+- [x] Downstream error handling
 
-### Observability
+## Observability
 
 - [x] Structured JSON logging
 - [x] Request IDs
+- [x] Cross-service request correlation
 - [x] Trace/log correlation
 - [x] OpenTelemetry instrumentation
-- [x] HTTP tracing
+- [x] HTTP server tracing
+- [x] HTTP client tracing
 - [x] Database tracing
 - [x] Custom application spans
 - [x] Application metrics
@@ -639,20 +923,32 @@ This structure allows the project to evolve into a broader Solutions Engineering
 - [x] Jaeger
 - [x] Prometheus
 - [x] Grafana dashboards
+- [x] Inter-service distributed tracing
 - [ ] Operational alerting
-- [ ] Service-level indicators
+- [ ] Service-level indicators and objectives
 
-### Architecture
+## Architecture
 
 - [x] Docker Compose environment
-- [ ] Additional microservices
-- [ ] Inter-service distributed tracing
+- [x] Multiple application services
+- [x] Inter-service communication
+- [x] Distributed context propagation
 - [ ] Reverse proxy / load balancer
 - [ ] Cloud deployment
 - [ ] Terraform infrastructure
 - [ ] AWS networking
 
-### Security
+## Reliability & Incident Simulation
+
+- [x] Configurable latency injection
+- [x] Latency incident investigation
+- [x] Downstream dependency error handling
+- [ ] Payment dependency incident
+- [ ] Timeout incident
+- [ ] Database contention incident
+- [ ] Service-level alerting
+
+## Security
 
 - [ ] Authentication and authorization
 - [ ] Edge security controls
@@ -661,7 +957,7 @@ This structure allows the project to evolve into a broader Solutions Engineering
 - [ ] SIEM integration
 - [ ] Security incident scenarios
 
-### Solutions Engineering
+## Solutions Engineering
 
 - [ ] Customer discovery scenario
 - [ ] Requirements mapping
@@ -673,48 +969,50 @@ This structure allows the project to evolve into a broader Solutions Engineering
 
 ---
 
-## Planned Architecture
+# Planned Architecture
 
 The long-term environment will evolve toward a broader production-inspired architecture:
 
 ```text
-                            Internet
-                               │
-                               ▼
-                      Edge / Security Layer
-                               │
-                    DNS / CDN / WAF / Zero Trust
-                               │
-                               ▼
-                         Load Balancer
-                               │
-              ┌────────────────┼────────────────┐
-              │                │                │
-              ▼                ▼                ▼
-          Frontend         Orders API      Payments API
-                               │                │
-                               └───────┬────────┘
-                                       │
-                                       ▼
-                                  PostgreSQL
+                              Internet
+                                 │
+                                 ▼
+                        Edge / Security Layer
+                                 │
+                     DNS / CDN / WAF / Zero Trust
+                                 │
+                                 ▼
+                           Load Balancer
+                                 │
+                  ┌──────────────┴──────────────┐
+                  │                             │
+                  ▼                             ▼
+              Frontend                     Orders API
+                                               │
+                                  ┌────────────┴────────────┐
+                                  │                         │
+                                  ▼                         ▼
+                             PostgreSQL                Payments API
 
 
-                     Observability Pipeline
+                       Observability Pipeline
 
-                  Applications / Infrastructure
-                              │
-                              ▼
-                      OpenTelemetry
-                              │
-                              ▼
-                    OpenTelemetry Collector
-                         │           │
-                         │           │
-                         ▼           ▼
-                       Traces      Metrics / Logs
+                    Applications / Infrastructure
+                                │
+                                ▼
+                        OpenTelemetry
+                                │
+                                ▼
+                      OpenTelemetry Collector
+                         │              │
+                         ▼              ▼
+                       Jaeger       Prometheus
+                                      │
+                                      ▼
+                                   Grafana
 ```
 
-The goal is to use the same environment to explore multiple Solutions Engineering domains, including:
+The same environment will be used to explore multiple Solutions Engineering domains, including:
 
 - cloud infrastructure
 - application performance monitoring
@@ -730,13 +1028,13 @@ The goal is to use the same environment to explore multiple Solutions Engineerin
 
 ---
 
-## Solutions Engineering Focus
+# Solutions Engineering Focus
 
 This repository is not intended to represent a finished commercial application.
 
-It is a **production-inspired technical lab and portfolio environment** designed to demonstrate the ability to connect application behavior, infrastructure, telemetry, and customer-facing troubleshooting.
+It is a **production-inspired technical lab and portfolio environment** designed to demonstrate the ability to connect application behavior, infrastructure, telemetry, reliability, and customer-facing troubleshooting.
 
-The emphasis is therefore not only on:
+The emphasis is not only:
 
 ```text
 Can the application run?
@@ -747,27 +1045,53 @@ but also:
 ```text
 Can the architecture be explained?
 
-Can dependencies be identified?
+Can service dependencies be identified?
 
 Can telemetry be designed correctly?
 
-Can a production symptom be investigated?
+Can context be propagated across services?
 
-Can the root cause be isolated using evidence?
+Can a production symptom be detected?
+
+Can an affected request be identified?
+
+Can a distributed trace isolate the responsible dependency?
+
+Can competing root-cause hypotheses be eliminated using evidence?
 
 Can the findings be communicated clearly?
 
-Can the solution be mapped to customer requirements?
+Can a proposed solution be mapped to customer requirements?
 ```
 
 Those questions drive the continued development of the project.
 
 ---
 
-## Project Status
+# Project Status
 
 **Active development**
 
-The current phase focuses on building the core application and observability foundation.
+The current platform has established its core distributed application and observability foundation:
 
-Upcoming work will add a Prometheus and Grafana metrics stack, additional distributed services, cloud infrastructure, security scenarios, and customer-facing Solutions Engineering material.
+```text
+FastAPI services
+      +
+PostgreSQL
+      +
+Docker Compose
+      +
+OpenTelemetry
+      +
+structured logging
+      +
+distributed tracing
+      +
+Prometheus
+      +
+Grafana
+      +
+incident simulation
+```
+
+The next development phase will expand the platform into additional reliability incidents, cloud infrastructure, security scenarios, and customer-facing Solutions Engineering exercises.
