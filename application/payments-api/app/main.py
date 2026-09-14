@@ -1,22 +1,63 @@
 import logging
 import time
 import uuid
+import os 
+import random
 
-from fastapi import FastAPI, Request
-from opentelemetry import trace
+from fastapi import FastAPI, HTTPException, Request
+from opentelemetry import (
+    trace,
+    metrics,
+)
 from opentelemetry.instrumentation.fastapi import (
     FastAPIInstrumentor,
 )
 from pydantic import BaseModel
 
-from .telemetry import configure_tracing
+from .telemetry import (
+    configure_tracing,
+    configure_metrics,
+)
 from .logging_config import configure_logging
+
+
+PAYMENT_FAILURE_RATE = float(
+    os.getenv(
+        "PAYMENT_FAILURE_RATE",
+        "0",
+    )
+)
+
+PAYMENT_DELAY_SECONDS = float(
+    os.getenv(
+        "PAYMENT_DELAY_SECONDS",
+        "0",
+    )
+)
+
 
 configure_logging()
 configure_tracing()
+configure_metrics()
 
 logger = logging.getLogger(
     "acmecorp"
+)
+
+meter = metrics.get_meter(
+    "payments-api"
+)
+
+request_counter = meter.create_counter(
+    name="acmecorp.http.requests",
+    description="Total number of HTTP requests",
+    unit="1",
+)
+
+request_duration = meter.create_histogram(
+    name="acmecorp.http.request.duration",
+    description="HTTP request duration",
+    unit="ms",
 )
 
 app = FastAPI(
@@ -69,6 +110,31 @@ async def request_logging_middleware(
             "X-Request-ID"
         ] = request_id
 
+
+        route = request.scope.get("route")
+        route_path = getattr(
+            route,
+            "path",
+            request.url.path,
+        )
+
+        attributes = {
+            "http.request.method": request.method,
+            "http.route": route_path,
+            "http.response.status_code":
+                response.status_code,
+        }
+
+        request_counter.add(
+            1,
+            attributes=attributes,
+        )
+
+        request_duration.record(
+            duration_ms,
+            attributes=attributes,
+        )
+
         logger.info(
             "HTTP request completed",
             extra={
@@ -91,6 +157,29 @@ async def request_logging_middleware(
             time.perf_counter()
             - start_time
         ) * 1000
+
+        route = request.scope.get("route")
+        route_path = getattr(
+            route,
+            "path",
+            request.url.path,
+        )
+
+        attributes = {
+            "http.request.method": request.method,
+            "http.route": route_path,
+            "http.response.status_code": 500,
+        }
+
+        request_counter.add(
+            1,
+            attributes=attributes,
+        )
+
+        request_duration.record(
+            duration_ms,
+            attributes=attributes,
+        )
 
         logger.exception(
             "Unhandled exception during HTTP request",
@@ -142,7 +231,44 @@ def authorize_payment(
             payment.amount_cents,
         )
 
-        time.sleep(0.15)
+        span.set_attribute(
+            "payment.failure_rate",
+            PAYMENT_FAILURE_RATE,
+        )
+
+        span.set_attribute(
+            "payment.delay_seconds",
+            PAYMENT_DELAY_SECONDS,
+        )
+
+        if PAYMENT_DELAY_SECONDS > 0:
+            time.sleep(
+                PAYMENT_DELAY_SECONDS
+            )
+
+        if random.random() < PAYMENT_FAILURE_RATE:
+            span.set_attribute(
+                "payment.authorized",
+                False,
+            )
+
+            logger.error(
+                "Payment authorization failed",
+                extra={
+                    "order_id":
+                        payment.order_id,
+                },
+            )
+
+            raise HTTPException(
+                status_code=500,
+                detail="Simulated payment authorization failure",
+            )
+
+        span.set_attribute(
+            "payment.authorized",
+            True,
+        )
 
         logger.info(
             "Payment authorized",
@@ -151,9 +277,11 @@ def authorize_payment(
                     payment.order_id,
             },
         )
-        
+
         return PaymentResponse(
             order_id=payment.order_id,
             status="authorized",
-            authorization_code=f"AUTH-{payment.order_id}",
+            authorization_code=(
+                f"AUTH-{payment.order_id}"
+            ),
         )

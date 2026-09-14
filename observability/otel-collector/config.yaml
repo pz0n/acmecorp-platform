@@ -22,6 +22,8 @@ exporters:
   # OpenTelemetry's current Docker docs also uses port 8889 for Prometheus, so we will use that here.
   prometheus:
     endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
 
 service:
   pipelines:
