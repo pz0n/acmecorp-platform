@@ -145,3 +145,14 @@ resource "aws_vpc_security_group_ingress_rule" "database_from_app" {
   to_port     = 5432
   ip_protocol = "tcp"
 }
+
+resource "aws_vpc_security_group_ingress_rule" "payments_api_http" {
+  security_group_id = aws_security_group.app.id
+
+  cidr_ipv4   = "0.0.0.0/0"
+  from_port   = 8001
+  to_port     = 8001
+  ip_protocol = "tcp"
+
+  description = "Temporary public access to payments API"
+}
