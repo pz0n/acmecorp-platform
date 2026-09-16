@@ -152,6 +152,7 @@ Technical details are kept alongside the code rather than putting everything in 
 - [Architecture](docs/architecture.md)
 - [Observability](docs/observability.md)
 - [Running Locally](docs/running-locally.md)
+- [Service Level Indicators and Objectives](docs/service-level-objectives.md)
 - [Troubleshooting](docs/troubleshooting.md)
 - [Incident 001 — Slow Inventory Dependency](incidents/001-slow-inventory-check.md)
 - [Incident 002 — Payment Authorization Failures](incidents/002-payment-authorization-failures.md)
