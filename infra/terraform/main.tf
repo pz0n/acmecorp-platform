@@ -106,3 +106,42 @@ resource "aws_route_table_association" "public_b" {
   subnet_id      = aws_subnet.public_b.id
   route_table_id = aws_route_table.public.id
 }
+
+resource "aws_security_group" "app" {
+  name        = "acmecorp-app-sg"
+  description = "Security group for AcmeCorp application services"
+  vpc_id      = aws_vpc.acmecorp.id
+
+  tags = {
+    Name        = "acmecorp-app-sg"
+    Project     = "acmecorp-platform"
+    Environment = "dev"
+  }
+}
+
+resource "aws_vpc_security_group_egress_rule" "app_all" {
+  security_group_id = aws_security_group.app.id
+  cidr_ipv4         = "0.0.0.0/0"
+  ip_protocol       = "-1"
+}
+
+resource "aws_security_group" "database" {
+  name        = "acmecorp-database-sg"
+  description = "Security group for AcmeCorp database"
+  vpc_id      = aws_vpc.acmecorp.id
+
+  tags = {
+    Name        = "acmecorp-database-sg"
+    Project     = "acmecorp-platform"
+    Environment = "dev"
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "database_from_app" {
+  security_group_id            = aws_security_group.database.id
+  referenced_security_group_id = aws_security_group.app.id
+
+  from_port   = 5432
+  to_port     = 5432
+  ip_protocol = "tcp"
+}
