@@ -58,7 +58,7 @@ resource "aws_ecs_task_definition" "payments_api" {
   container_definitions = jsonencode([
     {
       name      = "payments-api"
-      image     = "${aws_ecr_repository.payments_api.repository_url}:latest"
+      image     = "${data.aws_ecr_repository.payments_api.repository_url}:latest"
       essential = true
 
       portMappings = [
