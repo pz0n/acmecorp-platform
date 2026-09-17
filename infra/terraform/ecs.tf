@@ -75,7 +75,7 @@ resource "aws_ecs_task_definition" "payments_api" {
           value = "payments-api"
         },
         {
-          name  = "PAYMENT_FAILURE_RATE"
+          name  = "PAYMENTS_FAILURE_RATE"
           value = "0"
         },
         {
